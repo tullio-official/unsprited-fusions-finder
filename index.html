@@ -1078,6 +1078,29 @@
       image-rendering: pixelated;
     }
 
+    /* footer */
+    #foot {
+      display: table;
+      margin: 21px auto 24px;
+      padding: 6px 12px 9px;
+      background: #303030;
+      color: #f8f8f8;
+      border: 3px solid #000;
+      font-family: "Power Clear Regular", monospace;
+      font-size: 26px;
+      -webkit-font-smoothing: none;
+      text-align: center;
+      clip-path: polygon(3px 0, calc(100% - 3px) 0, calc(100% - 3px) 3px, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 3px calc(100% - 3px), 0 calc(100% - 3px), 0 3px, 3px 3px);
+    }
+
+    #foot a {
+      color: #f8d030;
+    }
+
+    #foot a:hover {
+      color: #68b8f8;
+    }
+
     /* hover zoom */
     #zoom {
       position: fixed;
@@ -1229,6 +1252,12 @@
         width: 100%;
       }
 
+      #foot {
+        grid-column: 1;
+        grid-row: 4;
+        margin-top: 5px;
+      }
+
       #side {
         grid-column: 2;
         grid-row: 1 / span 3;
@@ -1327,6 +1356,7 @@
         </fieldset>
       </div>
     </div>
+    <footer id="foot">Feedback or bugs? <a href="https://discord.com/users/555046719406997552" target="_blank" rel="noopener">Discord</a> · <a href="https://github.com/tullio-official/unsprited-fusions-finder/issues" target="_blank" rel="noopener">GitHub</a></footer>
   </div>
   <script>
     // theme switch (clears if it matches the system)
@@ -1338,7 +1368,7 @@
       try { next === sys ? localStorage.removeItem("theme") : localStorage.setItem("theme", next); } catch (e) { }
     };
   </script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=17"></script>
 </body>
 
 </html>
