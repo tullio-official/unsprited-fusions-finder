@@ -1,14 +1,20 @@
+// sprited fusions list (2nd url is backup)
 const LIST_URLS = [
   "https://raw.githubusercontent.com/infinitefusion/pif-downloadables/refs/heads/master/CUSTOM_SPRITES",
   "https://raw.githubusercontent.com/infinitefusion/infinitefusion-e18/main/Data/sprites/CUSTOM_SPRITES",
 ];
+
+// pokémon count and species data files (+ decryption key)
 const GAME_RAW = "https://raw.githubusercontent.com/infinitefusion/infinitefusion-e18/releases/";
 const GAME = GAME_RAW + "Data/";
 const SETTINGS_URL = GAME + "Scripts/001_Settings.rb";
 const SPECIES_URL = GAME + "species.dat";
 const KEY_URL = GAME + "Scripts/001_Technical/000_Encryption.rb";
+
+// sprite filename regex (25.1.png or 25.1a.png)
 const SPRITE = /^(\d+)\.(\d+)[a-z]*\.png$/;
 
+// pokémon names
 const NAMES = [
   "Bulbasaur", "Ivysaur", "Venusaur", "Charmander", "Charmeleon", "Charizard", "Squirtle", "Wartortle", "Blastoise", "Caterpie",
   "Metapod", "Butterfree", "Weedle", "Kakuna", "Beedrill", "Pidgey", "Pidgeotto", "Pidgeot", "Rattata", "Raticate",
@@ -70,6 +76,7 @@ const NAMES = [
   "Skrelp", "Dragalge", "Shellos (East Sea)", "Gastrodon (East Sea)", "Shellos (West Sea)", "Gastrodon (West Sea)",
 ];
 
+// national dex numbers (same order as names)
 const DEX = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
   21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
@@ -102,13 +109,16 @@ const DEX = [
   365, 366, 367, 368, 369, 527, 528, 602, 603, 604, 690, 691, 422, 423, 422, 423,
 ];
 
+// legendaries and mythicals (national dex numbers)
 const LEGENDS = [
   144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385,
   386, 483, 484, 486, 487, 488, 491, 493, 643, 644, 646, 648, 649, 719, 800,
 ];
 
+// last national dex number per region
 const REGIONS = { Kanto: 151, Johto: 251, Hoenn: 386, Sinnoh: 493, Unova: 649, Kalos: 721, Alola: 809 };
 
+// fetch as text (or bytes)
 async function get(url, bytes) {
   let r;
   try {
@@ -120,23 +130,26 @@ async function get(url, bytes) {
   return bytes ? new Uint8Array(await r.arrayBuffer()) : r.text();
 }
 
+// sprited fusions list
 async function spriteList() {
   for (const url of LIST_URLS) {
     try {
       return (await get(url)).split(/\s+/);
-    } catch (e) {}
+    } catch (e) { }
   }
   throw new Error("can't get the sprite list");
 }
 
+// pokémon count from game settings
 async function pokemonCount() {
   try {
     const m = (await get(SETTINGS_URL)).match(/NB_POKEMON\s*=\s*(\d+)\s*$/m);
     if (m) return +m[1];
-  } catch (e) {}
+  } catch (e) { }
   return NAMES.length;
 }
 
+// ruby marshal decoder (i think, as long as it works i'm not questioning it)
 function marshal(b) {
   let p = 2;
   const syms = [], objs = [], text = new TextDecoder();
@@ -212,6 +225,7 @@ function marshal(b) {
   return read();
 }
 
+// species data (xor-decrypted if no marshal header)
 async function species() {
   const b = await get(SPECIES_URL, true);
   if (b[0] !== 4 || b[1] !== 8) {
@@ -226,9 +240,11 @@ async function species() {
 const name = i => NAMES[i - 1] || `#${i}`;
 let nb, done, types, height, color, shape, region, stage, legend, family, served, cutoff;
 
+// load everything (returns sprited count)
 async function load() {
   const [list, count, data] = await Promise.all([spriteList(), pokemonCount(), species()]);
   nb = count;
+  // done[h * (nb + 1) + b] = 1 if sprited
   done = new Uint8Array((nb + 1) * (nb + 1));
   served = new Uint32Array(nb + 1);
   let sprited = 0;
@@ -243,6 +259,7 @@ async function load() {
       if (b !== h) served[b]++;
     }
   }
+  // undersprited cutoff (bottom 10%)
   cutoff = served.slice(1).sort()[Math.ceil(nb / 10) - 1];
   types = [];
   height = [];
@@ -253,6 +270,7 @@ async function load() {
   legend = [];
   family = [];
   const prev = new Uint8Array(nb + 1), next = new Uint8Array(nb + 1), seen = new Map();
+  // union-find for evolution families
   const root = i => family[i] === i ? i : (family[i] = root(family[i]));
   const join = (a, b) => {
     family[root(a)] = root(b);
@@ -262,6 +280,7 @@ async function load() {
     const d = DEX[i - 1];
     region[i] = Object.keys(REGIONS).find(r => d <= REGIONS[r]) || "";
     legend[i] = LEGENDS.includes(d);
+    // forms sharing a dex number = same family
     if (d) {
       if (seen.has(d)) join(i, seen.get(d));
       else seen.set(d, i);
@@ -281,6 +300,7 @@ async function load() {
     for (const [to, , , back] of s["@evolutions"] || []) {
       const j = data.get(to)?.["@id_number"];
       if (!(j >= 1 && j <= nb)) continue;
+      // back = pre-evolution entry
       if (back) {
         prev[i] = next[j] = 1;
       } else {
@@ -297,7 +317,9 @@ async function load() {
 }
 
 const $ = id => document.getElementById(id);
+// height buckets (m), see size()
 const SIZES = { XS: "Under 0.5 m", S: "0.5 to 1 m", M: "1 to 1.5 m", L: "1.5 to 2 m", XL: "Over 2 m" };
+// game shape ids → labels
 const SHAPES = {
   Head: "head only", HeadLegs: "head and legs", HeadArms: "head and arms", HeadBase: "head and base",
   Serpentine: "serpentine", Finned: "finned", Insectoid: "insectoid", Quadruped: "quadruped",
@@ -316,6 +338,7 @@ function size(i) {
   return "XL";
 }
 
+// createElement shorthand
 function el(tag, props, ...kids) {
   const e = Object.assign(document.createElement(tag), props);
   e.append(...kids);
@@ -335,8 +358,28 @@ function infoBubble(text) {
   return el("span", { className: "info-wrap" }, info, bubble);
 }
 
+// pixel icon paths (6×6 grid)
 const COPY_ICON = "M0 0h4v1H1v3H0z M2 2h4v4H2z M3 3v2h2V3z";
 const LINK_ICON = "M0 1h2v1H1v3h3V4h1v2H0z M3 0h3v3H5V2H4V1H3z M3 2h1v1H3z M2 3h1v1H2z";
+
+// swap arrows (8×11 grid)
+const SWAP_TOP = "M0 2h5v1H0z M5 0h1v5H5z M6 1h1v3H6z M7 2h1v1H7z";
+const SWAP_BOT = "M0 8h1v1H0z M1 7h1v3H1z M2 6h1v5H2z M3 8h5v1H3z";
+
+function swapIcon() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 8 11");
+  svg.setAttribute("class", "swic");
+  svg.setAttribute("shape-rendering", "crispEdges");
+  for (const [d, c] of [[SWAP_TOP, "#f8d030"], [SWAP_BOT, "#68b8f8"]]) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", c);
+    svg.append(path);
+  }
+  return svg;
+}
 
 function icon(d) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -356,6 +399,7 @@ function copy(text) {
   fallbackCopy(text);
 }
 
+// for browsers without the clipboard api
 function fallbackCopy(text) {
   const t = el("textarea", { value: text });
   document.body.append(t);
@@ -364,6 +408,7 @@ function fallbackCopy(text) {
   t.remove();
 }
 
+// toggle switch (+ 90ms halfway frame)
 function flip(btn, on) {
   btn.classList.toggle("on", on);
   btn.classList.remove("mid-on", "mid-off");
@@ -372,6 +417,7 @@ function flip(btn, on) {
   btn.t = setTimeout(() => btn.classList.remove("mid-on", "mid-off"), 90);
 }
 
+// one filter panel (head or body)
 function column(fieldset, allTypes, all, ids) {
   const mons = new Set();
   const chips = el("span", { className: "chips" });
@@ -380,11 +426,7 @@ function column(fieldset, allTypes, all, ids) {
   const search = el("span", { className: "search" }, input, list);
   const allNames = [...ids.values()].map(name);
   let hits = [], sel = 0;
-  const pick = n => {
-    const i = ids.get((n ?? input.value).trim().toLowerCase());
-    if (!i) return;
-    input.value = "";
-    list.hidden = true;
+  const add = i => {
     if (mons.has(i)) return;
     mons.add(i);
     const chip = el("button", { type: "button", className: "chip", textContent: name(i) + " ×" });
@@ -393,6 +435,13 @@ function column(fieldset, allTypes, all, ids) {
       chip.remove();
     };
     chips.append(chip);
+  };
+  const pick = n => {
+    const i = ids.get((n ?? input.value).trim().toLowerCase());
+    if (!i) return;
+    input.value = "";
+    list.hidden = true;
+    add(i);
   };
   const show = () => {
     list.replaceChildren(...hits.map((n, k) => {
@@ -405,9 +454,11 @@ function column(fieldset, allTypes, all, ids) {
     }));
     list.hidden = !hits.length;
   };
+  // autocomplete (prefix matches first)
   input.addEventListener("input", () => {
     const q = input.value.trim().toLowerCase();
-    hits = !q ? [] : [...allNames.filter(n => n.toLowerCase().startsWith(q)), ...allNames.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q))].slice(0, 8);
+    const free = allNames.filter(n => !mons.has(ids.get(n.toLowerCase())));
+    hits = !q ? [] : [...free.filter(n => n.toLowerCase().startsWith(q)), ...free.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q))].slice(0, 8);
     sel = 0;
     show();
   });
@@ -417,12 +468,16 @@ function column(fieldset, allTypes, all, ids) {
       e.preventDefault();
       sel = (sel + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length;
       show();
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" || (e.key === "Tab" && hits.length && !list.hidden)) {
       e.preventDefault();
       pick(hits.length && !list.hidden ? hits[sel] : undefined);
-    } else if (e.key === "Escape") list.hidden = true;
+    } else if (e.key === "Escape") {
+      list.hidden = true;
+      input.blur();
+    }
   });
   input.addEventListener("blur", () => list.hidden = true);
+  // type colours [main, highlight, shadow]
   const TYPE_COL = {
     NORMAL: ["#a8a878", "#d8d8c0", "#705848"], FIGHTING: ["#c03028", "#f08030", "#484038"], FLYING: ["#a890f0", "#c8c0f8", "#705898"],
     POISON: ["#a040a0", "#d880b8", "#483850"], GROUND: ["#e0c068", "#f8f878", "#886830"], ROCK: ["#b8a038", "#e0c068", "#886830"],
@@ -432,6 +487,7 @@ function column(fieldset, allTypes, all, ids) {
     DRAGON: ["#7038f8", "#b8a0f8", "#483890"], DARK: ["#705848", "#a8a878", "#484038"], FAIRY: ["#ffaec9", "#ffdfea", "#ff82aa"],
   };
   const ORDER = Object.keys(TYPE_COL);
+  // unknown types sort last
   const rank = t => (ORDER.indexOf(String(t).toUpperCase()) + 99) % 99;
   const typeBoxes = [...allTypes].sort((a, b) => rank(a) - rank(b)).map(t => {
     const lc = String(t).toLowerCase(), c = TYPE_COL[String(t).toUpperCase()] || ["#68a090", "#70c8b0", "#206860"];
@@ -441,6 +497,7 @@ function column(fieldset, allTypes, all, ids) {
   });
   const sizeBoxes = Object.keys(SIZES).map(k => el("label", { className: "seg", title: SIZES[k] }, el("input", { type: "checkbox", value: k }), el("span", { textContent: k })));
   const regionBoxes = Object.keys(REGIONS).map(r => el("label", { className: "tile" }, el("input", { type: "checkbox", value: r }), el("span", { textContent: r })));
+  // colour chips, same format
   const COLOR_COL = {
     Red: ["#e04838", "#f88870", "#a02820"], Yellow: ["#f0d038", "#f8f080", "#b09820"], Green: ["#58b848", "#98e080", "#307828"],
     Blue: ["#4878e0", "#88b0f8", "#284898"], Purple: ["#9058c0", "#c098e8", "#583080"], Pink: ["#f088b8", "#f8c0d8", "#c05888"],
@@ -455,6 +512,7 @@ function column(fieldset, allTypes, all, ids) {
     icon.style.cssText = `--m:${v[0]};--h:${v[1]};--l:${v[2]}`;
     return el("label", { className: "tbox" }, el("input", { type: "checkbox", value: c }), icon);
   });
+  // row order in shapes-*.png
   const SHAPE_ROW = ["Head", "Serpentine", "Finned", "HeadArms", "HeadBase", "BipedalTail", "HeadLegs", "Quadruped", "Winged", "Multiped", "MultiBody", "Bipedal", "MultiWinged", "Insectoid"];
   const shapeBoxes = [...all.shapes].sort((a, b) => (SHAPE_ROW.indexOf(a) + 99) % 99 - (SHAPE_ROW.indexOf(b) + 99) % 99).map(sh => {
     const r = SHAPE_ROW.indexOf(sh), nm = shapeName(sh);
@@ -468,14 +526,21 @@ function column(fieldset, allTypes, all, ids) {
   const legendBoxes = [["only", "Only", "Only legendary and mythical"], ["hide", "Exclude", "No legendary or mythical"]].map(([v, t, tip]) =>
     el("label", { className: "seg", title: tip }, el("input", { type: "radio", name: fieldset.id + "-legend", value: v }), el("span", { textContent: t })));
   legendBoxes[0].firstChild.checked = true;
+  // filter row
   const sec = (label, ...kids) => {
     const btn = el("button", { type: "button", className: "ftog" }, el("span", { className: "sw" }), el("span", { className: "lbl", textContent: label }));
     const opts = el("span", { className: "fopts", hidden: true }, ...kids);
     btn.onclick = () => {
       opts.hidden = !opts.hidden;
       flip(btn, !opts.hidden);
+      if (!opts.hidden) opts.querySelector("input:not([type])")?.focus();
     };
-    return { row: el("div", { className: "frow" }, btn, opts), on: () => !opts.hidden };
+    const set = on => {
+      if (on === !opts.hidden) return;
+      opts.hidden = !on;
+      flip(btn, on);
+    };
+    return { row: el("div", { className: "frow" }, btn, opts), on: () => !opts.hidden, set };
   };
   const f = {
     mon: sec("Pokémon", search),
@@ -501,9 +566,45 @@ function column(fieldset, allTypes, all, ids) {
   f.shape.row.classList.add("frow-shape");
   f.mon.row.append(chips);
   fieldset.append(...Object.values(f).map(x => x.row));
+  // ticked values, [] if the filter's off
   const ticked = (x, boxes) => x.on() ? boxes.filter(l => l.firstChild.checked).map(l => l.firstChild.value) : [];
+  const boxes = () => [...fieldset.querySelectorAll("input[type=checkbox], input[type=radio]")];
+  // panel state, for swap + reset
+  const save = () => ({ on: Object.values(f).map(x => x.on()), checked: boxes().map(b => b.checked), mons: [...mons] });
+  const restore = st => {
+    Object.values(f).forEach((x, k) => x.set(st.on[k]));
+    boxes().forEach((b, k) => b.checked = st.checked[k]);
+    mons.clear();
+    chips.replaceChildren();
+    input.value = "";
+    list.hidden = true;
+    st.mons.forEach(add);
+  };
+  const fresh = save();
+  const groups = { type: typeBoxes, size: sizeBoxes, region: regionBoxes, color: colorBoxes, shape: shapeBoxes, stage: stageBoxes, legend: legendBoxes };
+  const reset = el("button", { type: "button", className: "reset", textContent: "Reset", title: "Reset these filters" });
+  reset.onclick = () => restore(fresh);
+  fieldset.querySelector("legend").append(reset);
   return {
     get mons() { return f.mon.on() ? mons : new Set(); },
+    // url form, e.g. mon.25.6_type.fire.ghost_under
+    get param() {
+      return Object.keys(f).filter(k => f[k].on()).map(k =>
+        [k, ...(k === "mon" ? [...mons] : (groups[k] || []).filter(l => l.firstChild.checked).map(l => String(l.firstChild.value).toLowerCase()))].join(".")).join("_");
+    },
+    set param(str) {
+      restore(fresh);
+      for (const part of str.split("_")) {
+        const [k, ...vals] = part.split(".");
+        if (!f[k]) continue;
+        f[k].set(true);
+        if (k === "mon") vals.map(Number).filter(i => i >= 1 && i <= nb).forEach(add);
+        else if (groups[k] && vals.length) for (const l of groups[k]) l.firstChild.checked = vals.includes(String(l.firstChild.value).toLowerCase());
+      }
+    },
+    get state() { return save(); },
+    set state(st) { restore(st); },
+    // ok[i] = 1 if pokémon i passes every filter
     fits() {
       const ts = ticked(f.type, typeBoxes), ss = ticked(f.size, sizeBoxes), rs = ticked(f.region, regionBoxes), cs = ticked(f.color, colorBoxes);
       const ps = ticked(f.shape, shapeBoxes), es = ticked(f.stage, stageBoxes), lg = f.legend.on() ? ticked(f.legend, legendBoxes)[0] : "any", u = f.under.on();
@@ -526,6 +627,7 @@ function column(fieldset, allTypes, all, ids) {
   };
 }
 
+// unsprited fusions passing both panels
 function matchPool(head, body) {
   const fh = head.fits(), fb = body.fits(), either = $("either").classList.contains("on"), line = $("line").classList.contains("on"), w = nb + 1;
   const pool = [];
@@ -544,24 +646,50 @@ function showCount(n) {
   $("count").hidden = false;
 }
 
+// hover zoom
+const ZOOM = 3;
+let zoom;
+
+function peek(sprite, h, b) {
+  if (!matchMedia("(hover: hover)").matches) return;
+  if (!zoom) document.body.append(zoom = el("div", { id: "zoom", hidden: true }));
+  const r = sprite.getBoundingClientRect(), s = 96 * ZOOM + 6, pad = 8;
+  const card = sprite.closest(".card").getBoundingClientRect(), gap = 12;
+  // left of card, else right, else centered
+  const x = card.left - gap - s >= pad ? card.left - gap - s
+    : card.right + gap + s <= innerWidth - pad ? card.right + gap
+      : Math.min(Math.max(r.left + r.width / 2 - s / 2, pad), innerWidth - s - pad);
+  const y = Math.min(Math.max(r.top + r.height / 2 - s / 2, pad), innerHeight - s - pad);
+  zoom.style.cssText = `left:${x}px;top:${y}px;background-image:${sprite.style.backgroundImage};background-size:${960 * ZOOM}px auto;` +
+    `background-position:${-(b % 10) * 96 * ZOOM}px ${-Math.floor(b / 10) * 96 * ZOOM}px;transform-origin:${r.left + r.width / 2 - x}px ${r.top + r.height / 2 - y}px`;
+  zoom.hidden = false;
+  zoom.classList.remove("pop");
+  // restart animation
+  void zoom.offsetWidth;
+  zoom.classList.add("pop");
+}
+
+const unpeek = () => zoom && (zoom.hidden = true);
+addEventListener("scroll", unpeek, true);
+
+// 6 random picks, no fusion twice
 function go(head, body) {
-  const pool = matchPool(head, body), w = nb + 1;
-  const pinned = new Set([...head.mons, ...body.mons]), used = new Set(), picks = [];
+  const pool = matchPool(head, body), w = nb + 1, picks = [];
   for (let i = 0; i < pool.length && picks.length < 6; i++) {
     const j = i + Math.floor(Math.random() * (pool.length - i));
     [pool[i], pool[j]] = [pool[j], pool[i]];
-    const h = Math.floor(pool[i] / w), b = pool[i] % w;
-    const others = [h, b].filter(x => !pinned.has(x));
-    if (others.some(x => used.has(x))) continue;
-    others.forEach(x => used.add(x));
-    picks.push([h, b]);
+    picks.push([Math.floor(pool[i] / w), pool[i] % w]);
   }
   showCount(pool.length);
+  unpeek();
   $("results").replaceChildren(...picks.map(([h, b]) => {
     const id = `${h}.${b}`;
-    const sprite = el("div", { className: "ag", title: "Auto-generated sprite" });
+    const sprite = el("a", { className: "ag", href: `https://infinitefusiondex.com/details/${id}`, target: "_blank", rel: "noopener", title: "Open on infinitefusiondex.com" });
+    // autogen sheet, 10 per row, 96px each
     sprite.style.backgroundImage = `url("${GAME_RAW}Graphics/Battlers/spritesheets_autogen/${h}.png")`;
     sprite.style.backgroundPosition = `${-(b % 10) * 96}px ${-Math.floor(b / 10) * 96}px`;
+    sprite.onmouseenter = () => peek(sprite, h, b);
+    sprite.onmouseleave = unpeek;
     const tagText = el("span", { textContent: id });
     const tag = el("button", { type: "button", className: "fid", title: "Copy fusion number" }, tagText, icon(COPY_ICON));
     tag.onclick = () => {
@@ -577,6 +705,7 @@ function go(head, body) {
   }));
 }
 
+// startup
 async function start() {
   let sprited;
   try {
@@ -595,17 +724,41 @@ async function start() {
   };
   const head = column($("head"), allTypes, all, ids);
   const body = column($("body"), allTypes, all, ids);
+  const swap = el("button", { type: "button", id: "swap", title: "Swap head and body filters", ariaLabel: "Swap head and body filters" }, swapIcon());
+  swap.onclick = () => [head.state, body.state] = [body.state, head.state];
+  $("line").after(swap);
   $("either").after(infoBubble("Also counts fusion reverses."));
   for (const b of [$("either"), $("line")]) b.onclick = () => flip(b, !b.classList.contains("on"));
-  const wide = matchMedia("(min-width: 1500px)");
-  const placePair = () => (wide.matches ? $("pairslot") : $("gobar")).append($("pair"));
-  wide.addEventListener("change", placePair);
-  placePair();
+  // filters in the url, for sharing
+  const url = new URLSearchParams(location.search);
+  if (url.has("head")) head.param = url.get("head");
+  if (url.has("body")) body.param = url.get("body");
+  if (url.get("line") === "1") flip($("line"), true);
+  if (url.get("reverses") === "1") flip($("either"), true);
+  const share = () => {
+    const u = new URLSearchParams();
+    if (head.param) u.set("head", head.param);
+    if (body.param) u.set("body", body.param);
+    if ($("line").classList.contains("on")) u.set("line", "1");
+    if ($("either").classList.contains("on")) u.set("reverses", "1");
+    const str = u.toString();
+    try { history.replaceState(null, "", str ? "?" + str : location.pathname); } catch (e) { }
+  };
   $("go").onclick = () => go(head, body);
+  // space = go (when not typing or on a button)
+  document.addEventListener("keydown", e => {
+    if (e.key !== " " || e.target.closest("input, textarea, button, a, select")) return;
+    e.preventDefault();
+    go(head, body);
+  });
+  // live match count
   let q;
   const recount = () => {
     clearTimeout(q);
-    q = setTimeout(() => showCount(matchPool(head, body).length), 0);
+    q = setTimeout(() => {
+      showCount(matchPool(head, body).length);
+      share();
+    }, 0);
   };
   for (const ev of ["click", "change", "keydown", "mousedown"]) $("ui").addEventListener(ev, recount);
   recount();
@@ -613,6 +766,7 @@ async function start() {
   const pct = sprited / total * 100;
   $("hp-pct").textContent = `${pct.toFixed(1)}%`;
   $("hp").hidden = false;
+  // double raf so the hp bar animates
   requestAnimationFrame(() => requestAnimationFrame(() => $("hp-fill").style.clipPath = `inset(0 ${100 - pct}% 0 0)`));
   $("status").textContent = `${sprited.toLocaleString("en")} / ${total.toLocaleString("en")} fusions have sprites!`;
   $("ui").hidden = false;
