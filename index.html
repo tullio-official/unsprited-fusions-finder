@@ -666,11 +666,11 @@
       clip-path: polygon(6px 0, 9px 0, 9px 3px, 12px 3px, 12px 6px, 15px 6px, 15px 9px, 0 9px, 0 6px, 3px 6px, 3px 3px, 6px 3px);
     }
 
-    /* info bubbles open below on phones */
+    /* info bubbles open above on phones */
     @media (max-width: 700px) {
       #cols .bubble {
-        top: calc(100% + 9px);
-        bottom: auto;
+        top: auto;
+        bottom: calc(100% + 9px);
         left: auto;
         right: -3px;
         width: min(300px, calc(100vw - 32px));
@@ -681,14 +681,18 @@
       }
 
       #cols .bubble-tail {
-        top: -9px;
-        bottom: auto;
+        top: auto;
+        bottom: -9px;
         left: auto;
         right: 9px;
         margin: 0;
         width: 15px;
         height: 9px;
-        clip-path: polygon(6px 0, 9px 0, 9px 3px, 12px 3px, 12px 6px, 15px 6px, 15px 9px, 0 9px, 0 6px, 3px 6px, 3px 3px, 6px 3px);
+        clip-path: polygon(0 0, 15px 0, 15px 3px, 12px 3px, 12px 6px, 9px 6px, 9px 9px, 6px 9px, 6px 6px, 3px 6px, 3px 3px, 0 3px);
+      }
+
+      #cols fieldset:has(.bubble:not([hidden])) {
+        z-index: 5;
       }
     }
 
@@ -1150,6 +1154,24 @@
       margin-top: 3px;
     }
 
+    /* phone tweaks */
+    @media (max-width: 700px) {
+      #status {
+        height: auto;
+        padding: 3px 9px 4px;
+        font-size: 13px;
+        line-height: 1;
+      }
+
+      .crow {
+        flex-wrap: wrap;
+      }
+
+      #foot .foot-q {
+        display: block;
+      }
+    }
+
     /* fusion id + dex buttons */
     .fid,
     .dex {
@@ -1356,7 +1378,7 @@
         </fieldset>
       </div>
     </div>
-    <footer id="foot">Feedback or bugs? <a href="https://discord.com/users/555046719406997552" target="_blank" rel="noopener">Discord</a> · <a href="https://github.com/tullio-official/unsprited-fusions-finder/issues" target="_blank" rel="noopener">GitHub</a></footer>
+    <footer id="foot"><span class="foot-q">Feedback or bugs?</span> <a href="https://discord.com/users/555046719406997552" target="_blank" rel="noopener">Discord</a> · <a href="https://github.com/tullio-official/unsprited-fusions-finder/issues" target="_blank" rel="noopener">GitHub</a></footer>
   </div>
   <script>
     // theme switch (clears if it matches the system)
